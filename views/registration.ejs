@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agricultural Labour Connect - User Registration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-md w-96">
+        <h2 class="text-2xl font-bold mb-6 text-green-600 text-center">User Registration</h2>
+        
+        <% if (locals.error) { %>
+            <div class="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+                <%= error %>
+            </div>
+        <% } %>
+        
+        <form id="userRegistrationForm" class="space-y-4">
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-700">User Type</label>
+                <select 
+                    name="userType"
+                    id="userType" 
+                    class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                >
+                    <option value="">Select User Type</option>
+                    <option value="farmer">Farmer</option>
+                    <option value="labour">Labour</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block mb-2 text-sm font-medium text-gray-700">Name</label>
+                <input 
+                    type="text" 
+                    name="name"
+                    id="userName" 
+                    placeholder="Enter your name" 
+                    class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                >
+            </div>
+
+            <div id="labourCountSection" style="display:none;">
+                <label class="block mb-2 text-sm font-medium text-gray-700">Number of Labours Required</label>
+                <input 
+                    type="number" 
+                    name="labourCount"
+                    id="labourCount" 
+                    min="1" 
+                    max="20" 
+                    placeholder="Enter number of labours" 
+                    class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+            </div>
+
+            <button 
+                type="submit" 
+                class="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
+            >
+                Register
+            </button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let userCoordinates = null;
+
+        // Get user's location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userCoordinates = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude
+                    };
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                }
+            );
+        }
+
+        document.getElementById('userType').addEventListener('change', function() {
+            const labourCountSection = document.getElementById('labourCountSection');
+            labourCountSection.style.display = this.value === 'farmer' ? 'block' : 'none';
+            
+            const labourCountInput = document.getElementById('labourCount');
+            labourCountInput.required = this.value === 'farmer';
+        });
+
+        document.getElementById('userRegistrationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!userCoordinates) {
+                alert('Please allow location access to continue');
+                return;
+            }
+
+            const formData = new FormData(this);
+            const data = {
+                ...Object.fromEntries(formData.entries()),
+                ...userCoordinates
+            };
+            
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Registration failed');
+                }
+
+                const result = await response.json();
+                localStorage.setItem('userId', result.userId);
+                window.location.href = result.redirect;
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agricultural Labour Connect</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+    <style>
+        .custom-marker {
+            position: relative;
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 25px solid;
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Map Container -->
+        <div id="map" class="w-2/3 h-full"></div>
+        
+        <!-- Sidebar -->
+        <div class="w-1/3 bg-white shadow-lg overflow-y-auto p-4">
+            <h2 class="text-2xl font-bold mb-4 text-green-600">Labour Connections</h2>
+            
+            <!-- Search and Filter -->
+            <div class="mb-4 flex space-x-2">
+                <input 
+                    type="text" 
+                    placeholder="Search by skill or name" 
+                    class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    id="searchInput"
+                >
+                <select 
+                    class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    id="skillFilter"
+                >
+                    <option value="">All Skills</option>
+                </select>
+            </div>
+
+            <!-- Labour List -->
+            <div id="labourList" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Map and Location Utilities
+        const BASE_COORDINATES = [13.3268979, 77.1235199];
+        
+        function getRandomCoordinates(centerLat, centerLon, radius) {
+            const randomAngle = Math.random() * 2 * Math.PI;
+            const randomRadius = Math.sqrt(Math.random()) * radius;
+            const earthRadius = 6371;
+
+            const offsetLat = randomRadius * Math.cos(randomAngle) / earthRadius * (180 / Math.PI);
+            const offsetLon = randomRadius * Math.sin(randomAngle) / (earthRadius * Math.cos(centerLat * Math.PI / 180)) * (180 / Math.PI);
+
+            return {
+                latitude: centerLat + offsetLat,
+                longitude: centerLon + offsetLon
+            };
+        }
+
+        // Labour Profile Generator
+        function generateLabourProfiles(count = 15) {
+            const skills = [
+                'Crop Harvesting', 'Planting', 'Irrigation', 
+                'Weeding', 'Soil Preparation', 'Water Management', 
+                'Fertilizer Application', 'Land Leveling'
+            ];
+            const names = [
+                'Ravi Kumar', 'Prakash Singh', 'Rahul Sharma', 
+                'Mohan Das', 'Arjun Mehta', 'Vikas Yadav', 
+                'Karan Singh', 'Ramesh Kumar', 'Suresh Gupta'
+            ];
+
+            return Array.from({length: count}, (_, index) => {
+                const location = getRandomCoordinates(...BASE_COORDINATES, 5);
+                return {
+                    id: `labour_${index + 1}`,
+                    name: names[index % names.length],
+                    skills: skills[index % skills.length],
+                    location: location,
+                    phone: `+91 ${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+                    experience: `${Math.floor(1 + Math.random() * 10)} years`,
+                    rating: (Math.random() * 5).toFixed(1)
+                };
+            });
+        }
+
+        // Initialize Map
+        const map = L.map("map").setView(BASE_COORDINATES, 12);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "OpenStreetMap",
+        }).addTo(map);
+
+        // Render Labour Markers and List
+        function renderLabourProfiles(labours) {
+            const labourList = document.getElementById('labourList');
+            const skillFilter = document.getElementById('skillFilter');
+            labourList.innerHTML = '';
+            skillFilter.innerHTML = '<option value="">All Skills</option>';
+
+            // Unique skills for filter
+            const uniqueSkills = [...new Set(labours.map(l => l.skills))];
+            uniqueSkills.forEach(skill => {
+                const option = document.createElement('option');
+                option.value = skill;
+                option.textContent = skill;
+                skillFilter.appendChild(option);
+            });
+
+            labours.forEach(labour => {
+                // Map Marker
+                const dropletIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="border-top-color: #10b981;"></div>`,
+                    iconSize: [30, 30]
+                });
+
+                L.marker(
+                    [labour.location.latitude, labour.location.longitude], 
+                    { icon: dropletIcon }
+                ).addTo(map).bindPopup(`
+                    <div class="text-center">
+                        <strong class="text-lg">${labour.name}</strong><br>
+                        Skills: ${labour.skills}<br>
+                        Experience: ${labour.experience}<br>
+                        Rating: ${'★'.repeat(Math.round(labour.rating))}
+                    </div>
+                `);
+
+                // Labour List Card
+                const card = document.createElement('div');
+                card.className = 'bg-white border rounded-lg p-4 shadow-md hover:shadow-lg transition-shadow';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-green-700">${labour.name}</h3>
+                            <p class="text-sm text-gray-600">
+                                Skills: ${labour.skills} | 
+                                Experience: ${labour.experience}
+                            </p>
+                            <div class="text-yellow-500">
+                                ${'★'.repeat(Math.round(labour.rating))}
+                            </div>
+                        </div>
+                        <button 
+                            onclick="addLabour('${labour.id}')" 
+                            class="bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition"
+                        >
+                            ADD
+                        </button>
+                    </div>
+                `;
+                labourList.appendChild(card);
+            });
+        }
+
+        // Search and Filter Functionality
+        function setupSearch(labours) {
+            const searchInput = document.getElementById('searchInput');
+            const skillFilter = document.getElementById('skillFilter');
+            const labourList = document.getElementById('labourList');
+
+            function filterLabours() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const skillTerm = skillFilter.value;
+
+                labourList.childNodes.forEach(card => {
+                    const name = card.querySelector('h3').textContent.toLowerCase();
+                    const skills = card.querySelector('p').textContent.toLowerCase();
+                    
+                    const matchesSearch = name.includes(searchTerm) || skills.includes(searchTerm);
+                    const matchesSkill = !skillTerm || skills.includes(skillTerm.toLowerCase());
+
+                    card.style.display = (matchesSearch && matchesSkill) ? 'block' : 'none';
+                });
+            }
+
+            searchInput.addEventListener('input', filterLabours);
+            skillFilter.addEventListener('change', filterLabours);
+        }
+
+        // Add Labour Function (Placeholder)
+        function addLabour(labourId) {
+    Toastify({
+        text: `Successfully added Labour: ${labourId}`,
+        duration: 3000, // Duration in milliseconds
+        close: true, // Adds a close button
+        gravity: "top", // Toast position (top or bottom)
+        position: "center", // Toast alignment (left, center, right)
+        backgroundColor: "linear-gradient(to right, #a8e063, #56ab2f)", // Light green gradient
+        stopOnFocus: true, // Pause on hover
+        style: {
+            borderRadius: "8px", // Rounded corners
+            color: "white", // Text color
+            fontWeight: "bold", // Bold text
+        },
+    }).showToast();
+}
+
+
+        // App Initialization
+        const labourProfiles = generateLabourProfiles();
+        renderLabourProfiles(labourProfiles);
+        setupSearch(labourProfiles);
+    </script>
+</body>
+</html>
